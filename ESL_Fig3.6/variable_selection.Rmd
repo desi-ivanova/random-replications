@@ -1,0 +1,59 @@
+---
+title: "Variable Selection"
+output: html_document
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+source("utilities.R")
+source("examples.R")
+
+theme_set(theme_bw(base_size = 12))
+```
+
+
+```{r rho0}
+res0 <- run_variable_selection(rho = 0, d = 30, N = 300, n_vars = 10,  seed = 420, nreps = 50) 
+  
+res0 %>% 
+  gather(var, val, -c(method, subset_size)) %>% 
+  group_by(method, subset_size) %>% 
+  summarise(mean_mse = mean(val), .groups = 'drop') %>% 
+  ggplot(aes(subset_size, mean_mse, col = method)) + 
+  geom_line() +
+  geom_point() + 
+  labs(title = "Correlation = 0")
+
+```
+
+
+```{r rho0.5}
+res50 <- run_variable_selection(rho = 0.5, d = 30, N = 300, n_vars = 10,  seed = 420, nreps = 50) 
+  
+res50 %>% 
+  gather(var, val, -c(method, subset_size)) %>% 
+  group_by(method, subset_size) %>% 
+  summarise(mean_mse = mean(val), .groups = 'drop') %>% 
+  ggplot(aes(subset_size, mean_mse, col = method)) + 
+  geom_line() +
+  geom_point() + 
+  labs(title = "Correlation = 0.5")
+
+```
+
+
+```{r rho0.9}
+res90 <- run_variable_selection(rho = 0.9, d = 30, N = 300, n_vars = 10,  seed = 420, nreps = 50) 
+  
+res90 %>% 
+  gather(var, val, -c(method, subset_size)) %>% 
+  group_by(method, subset_size) %>% 
+  summarise(mean_mse = mean(val), .groups = 'drop') %>% 
+  ggplot(aes(subset_size, mean_mse, col = method)) + 
+  geom_line() +
+  geom_point() + 
+  labs(title = "Correlation = 0.9")
+
+```
