@@ -27,17 +27,16 @@ generate_data <- function(rho, n_vars, N, d) {
   # bind in df
   data <- bind_cols(y_df, X_df)
   true_betas_df <- true_betas %>% t() %>% as_tibble() %>% gather(variable_name, value)
-  return(list("data" = data, "true_betas" = true_betas_df))
+  return(list("data" = data, "true_betas" = true_betas_df, "y_mean" = as.numeric(y_mean)))
 }
 
 extract_coefs_leaps <- function(leaps_output) {
-  d <- leaps_output$np - 1
+  d <- leaps_output$np
   estimated_betas <- coef(leaps_output, 1:d) %>% 
     tibble() %>% 
     set_names("res") %>%
     mutate(res = map(res, ~as_tibble(t(.x)))) %>% 
-    unnest(res) %>% 
-    select(-`(Intercept)`)  
+    unnest(res) 
   
   estimated_betas
 } 
@@ -53,6 +52,6 @@ calculate_mse_coefs <- function(coefs_leaps, beta_true, i) {
     mutate(ss = (estimate - value)^2) %>% 
     group_by(subset_size) %>% 
     summarise(mse = sum(ss), .groups = 'drop') %>% 
-    select(subset_size, !!paste0("mse_", i) := mse)
+    dplyr::select(subset_size, !!paste0("mse_", i) := mse)
 }
  
