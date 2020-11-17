@@ -16,19 +16,17 @@ run_variable_selection <- function(rho, n_vars = 4, N = 300, d = 100, seed=-1,
   backward_mses <- list()
   forward_mses <- list()
   lars_mses <- list()
-  # TODO
   lasso_mses <- list()
-  ridge_mses <- list()
+  stepwise_mses <- list()
+  stagewise_mses <- list()
   
-  sim_data <- generate_data(rho, n_vars, N, d)
-  data <- sim_data$data %>% 
-    mutate_all(~. - mean(.))
-  true_betas <- sim_data$true_betas
-  y_mean <- sim_data$y_mean
-  
-  full_mod <- lm(y_observed ~ . + 0, data=data)
-  # could it be the case that they've used fitted betas instead of true betas?
-  #true_betas$value <- coef(full_mod)
+  if (all_fixed) {
+    sim_data <- generate_data(rho, n_vars, N, d)
+    data <- sim_data$data %>% 
+      mutate_all(~. - mean(.))
+    true_betas <- sim_data$true_betas
+    y_mean <- sim_data$y_mean
+  }
   
   for (i in 1:nreps) {
     if (all_fixed) {
@@ -40,34 +38,59 @@ run_variable_selection <- function(rho, n_vars = 4, N = 300, d = 100, seed=-1,
       data <- sim_data$data
       true_betas <- sim_data$true_betas
     }
-    
 
     # run variable selections
-    backward_fits <- leaps::regsubsets(
-      y_observed ~ ., data = data, nbest = 1, nvmax = d, method = "backward", intercept = FALSE
-    ) %>% extract_coefs_leaps()
-    forward_fits <- leaps::regsubsets(
-      y_observed ~ ., data = data, nbest = 1, nvmax = d, method = "forward", intercept = FALSE
-    ) %>% extract_coefs_leaps()
     lars_fits <- lars::lars(
       x = data %>% dplyr::select(-y_observed) %>% as.matrix(), 
       y = data %>% pull(y_observed), 
       type = "lar", intercept = FALSE
-    ) %>% coef() %>% as_tibble() %>% 
-      filter(row_number() > 1)
+    ) %>% coef() %>% as_tibble() 
+    
+    lasso_fits <- lars::lars(
+      x = data %>% dplyr::select(-y_observed) %>% as.matrix(), 
+      y = data %>% pull(y_observed), 
+      type = "lasso", intercept = FALSE
+    ) %>% coef() %>% as_tibble() 
+    
+    stagewise_fits <- lars::lars(
+      x = data %>% dplyr::select(-y_observed) %>% as.matrix(), 
+      y = data %>% pull(y_observed), 
+      type = "forward.stagewise", intercept = FALSE
+    ) %>% coef() %>% as_tibble() 
+    
+    stepewise_fits <- lars::lars(
+      x = data %>% dplyr::select(-y_observed) %>% as.matrix(), 
+      y = data %>% pull(y_observed), 
+      type = "stepwise", intercept = FALSE
+    ) %>% coef() %>% as_tibble() 
+    
+    backward_fits <- leaps::regsubsets(
+      y_observed ~ ., data = data, nbest = 1, nvmax = d, method = "backward", intercept = FALSE
+    ) %>% extract_coefs_leaps() %>% 
+      add_row(lars_fits[1,], .before = 0)
+    
+    # forward_fits <- leaps::regsubsets(
+    #   y_observed ~ ., data = data, nbest = 1, nvmax = d, method = "forward", intercept = FALSE
+    # ) %>% extract_coefs_leaps()
     
     # calculate MSEs
     bb <- sum(true_betas$value^2)
     backward_mses[[i]] <- calculate_mse_coefs(backward_fits, true_betas, i) 
-    forward_mses[[i]] <- calculate_mse_coefs(forward_fits, true_betas, i) 
+    # forward_mses[[i]] <- calculate_mse_coefs(forward_fits, true_betas, i) 
     lars_mses[[i]] <- calculate_mse_coefs(lars_fits, true_betas, i)
+    lasso_mses[[i]] <- calculate_mse_coefs(lasso_fits, true_betas, i)
+    stagewise_mses[[i]] <- calculate_mse_coefs(stagewise_fits, true_betas, i)
+    stepwise_mses[[i]] <- calculate_mse_coefs(stepewise_fits, true_betas, i)
   }
   
   print(bb)
   bind_rows(list(
-    "backward_selection" = reduce(backward_mses, inner_join, by = "subset_size"), 
-    "forward_selection" = reduce(forward_mses, inner_join, by = "subset_size"),
-    "lars_selection" = reduce(lars_mses, inner_join, by = "subset_size")
+    "backward_stepwise_selection" = reduce(backward_mses, inner_join, by = "subset_size"), 
+    # "forward_selection" = reduce(forward_mses, inner_join, by = "subset_size"),
+    "lars_selection" = reduce(lars_mses, inner_join, by = "subset_size"), 
+    "lasso_selection" = reduce(lasso_mses, inner_join, by = "subset_size"), 
+    "stagewise_selection" = reduce(stagewise_mses, inner_join, by = "subset_size"),
+    "forward_stepwise_selection" = reduce(stepwise_mses, inner_join, by = "subset_size")
   ), .id = "method") 
 }
 
@@ -75,8 +98,8 @@ run_variable_selection <- function(rho, n_vars = 4, N = 300, d = 100, seed=-1,
 
 # testing
 if (FALSE) {
-  res <-  run_variable_selection(rho = 0, d = 31, N = 300, n_vars = 10, 
-                                 seed = -1, nreps = 50, all_fixed = TRUE) 
+  res <-  run_variable_selection(rho = .8, d = 31, N = 300, n_vars = 10, 
+                                 seed = 420, nreps = 50, all_fixed = FALSE) 
   
   res %>% 
     gather(var, val, -c(method, subset_size)) %>% 
